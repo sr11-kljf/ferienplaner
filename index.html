@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ferienplaner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --teal: #1D9E75; --teal-dark: #0F6E56; --teal-deeper: #085041; --teal-light: #E1F5EE;
+      --blue: #185FA5; --blue-light: #E6F1FB;
+      --amber: #BA7517; --amber-light: #FAEEDA;
+      --purple: #534AB7; --purple-light: #EEEDFE;
+      --coral: #D85A30; --coral-light: #FAECE7;
+      --text: #1a1a1a; --text-s: #555; --text-t: #888;
+      --border: rgba(0,0,0,0.1); --border-l: rgba(0,0,0,0.06);
+      --bg: #f7f8f6; --surface: #ffffff;
+      --r: 14px; --rs: 8px;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem 1rem 5rem; }
+    .container { max-width: 660px; margin: 0 auto; }
+
+    /* Hero */
+    .hero { background: linear-gradient(135deg, #1D9E75 0%, #0F6E56 45%, #185FA5 100%); border-radius: var(--r); padding: 2rem 1.75rem 1.75rem; margin-bottom: 1.5rem; position: relative; overflow: hidden; }
+    .hero::before { content: ''; position: absolute; top: -50px; right: -50px; width: 180px; height: 180px; border-radius: 50%; background: rgba(255,255,255,0.07); }
+    .hero::after { content: ''; position: absolute; bottom: -40px; left: 25%; width: 220px; height: 220px; border-radius: 50%; background: rgba(255,255,255,0.04); }
+    .hero-eyebrow { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.6); margin-bottom: 8px; }
+    .hero h1 { font-size: 30px; font-weight: 600; color: #fff; letter-spacing: -0.5px; line-height: 1.15; }
+    .hero p { font-size: 14px; color: rgba(255,255,255,0.68); margin-top: 7px; line-height: 1.5; }
+    .hero-icons { display: flex; gap: 10px; margin-top: 1.25rem; position: relative; z-index: 1; }
+    .hero-icon { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 17px; }
+
+    /* Steps */
+    .steps { display: flex; align-items: center; gap: 8px; margin-bottom: 1.5rem; }
+    .step { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-t); white-space: nowrap; }
+    .step-num { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--text-t); flex-shrink: 0; }
+    .step.active .step-num { background: var(--teal); border-color: var(--teal); color: #fff; }
+    .step.active { color: var(--text); font-weight: 500; }
+    .step.done .step-num { background: var(--teal-light); border-color: var(--teal); color: var(--teal-dark); }
+    .step-divider { flex: 1; height: 1px; background: var(--border-l); min-width: 8px; }
+
+    /* Cards */
+    .card { background: var(--surface); border-radius: var(--r); border: 0.5px solid var(--border-l); padding: 1.5rem; margin-bottom: 1rem; }
+    .section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-t); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-grid.single { grid-template-columns: 1fr; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 13px; color: var(--text-s); }
+    input[type=text], input[type=date], textarea { font-family: 'Inter', sans-serif; font-size: 14px; color: var(--text); background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--rs); padding: 9px 12px; outline: none; width: 100%; transition: border-color 0.15s; }
+    input:focus, textarea:focus { border-color: var(--teal); background: #fff; }
+    textarea { min-height: 70px; resize: vertical; }
+
+    .chip-group { display: flex; flex-wrap: wrap; gap: 7px; }
+    .chip { display: flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 20px; border: 0.5px solid var(--border); background: var(--bg); cursor: pointer; font-size: 13px; color: var(--text-s); transition: all 0.15s; user-select: none; font-family: 'Inter', sans-serif; }
+    .chip:hover { border-color: var(--teal); color: var(--text); }
+    .chip.active { background: var(--teal-light); border-color: var(--teal); color: var(--teal-deeper); font-weight: 500; }
+    .chip i { font-size: 15px; }
+
+    .budget-row { display: flex; align-items: center; gap: 16px; }
+    #budget-display { font-size: 18px; font-weight: 600; color: var(--teal-dark); min-width: 110px; text-align: right; }
+    input[type=range] { flex: 1; accent-color: var(--teal); cursor: pointer; }
+    .budget-labels { display: flex; justify-content: space-between; margin-top: 5px; }
+    .budget-labels span { font-size: 12px; color: var(--text-t); }
+
+    .persons-row { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+    .counter-btn { width: 32px; height: 32px; border-radius: 50%; border: 0.5px solid var(--border); background: var(--bg); cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; color: var(--text); transition: background 0.1s; font-family: 'Inter', sans-serif; }
+    .counter-btn:hover { background: var(--teal-light); border-color: var(--teal); }
+    #persons-count { font-size: 18px; font-weight: 600; min-width: 24px; text-align: center; }
+
+    .nights-badge { display: none; align-items: center; gap: 5px; background: var(--teal-light); color: var(--teal-dark); font-size: 12px; font-weight: 500; padding: 4px 12px; border-radius: 12px; margin-top: 8px; width: fit-content; }
+
+    /* Buttons */
+    .btn-primary { width: 100%; padding: 15px; font-size: 15px; font-weight: 500; border-radius: var(--r); border: none; background: linear-gradient(135deg, #1D9E75, #185FA5); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; font-family: 'Inter', sans-serif; transition: opacity 0.15s, transform 0.1s; }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:active { transform: scale(0.99); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-secondary { padding: 10px 18px; font-size: 14px; font-weight: 500; border-radius: var(--rs); border: 0.5px solid var(--border); background: var(--surface); color: var(--text-s); cursor: pointer; font-family: 'Inter', sans-serif; display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s; }
+    .btn-secondary:hover { border-color: var(--teal); color: var(--teal-dark); background: var(--teal-light); }
+    .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Variants */
+    .variants-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .variant-card { background: var(--surface); border: 1.5px solid var(--border-l); border-radius: var(--r); padding: 1.25rem 1.5rem; cursor: pointer; transition: all 0.2s; position: relative; }
+    .variant-card:hover { border-color: var(--teal); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(29,158,117,0.1); }
+    .variant-card.selected { border-color: var(--teal); background: #f0fdf8; }
+    .variant-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; padding-right: 32px; }
+    .variant-title { font-size: 16px; font-weight: 600; }
+    .variant-subtitle { font-size: 13px; color: var(--text-t); margin-top: 2px; }
+    .variant-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 12px; white-space: nowrap; flex-shrink: 0; }
+    .badge-budget { background: var(--teal-light); color: var(--teal-deeper); }
+    .badge-comfort { background: var(--blue-light); color: #0C447C; }
+    .badge-adventure { background: var(--amber-light); color: #633806; }
+    .variant-desc { font-size: 13px; color: var(--text-s); line-height: 1.6; margin-top: 8px; }
+    .variant-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .vtag { font-size: 12px; padding: 3px 10px; border-radius: 10px; background: var(--bg); color: var(--text-s); border: 0.5px solid var(--border); display: flex; align-items: center; gap: 4px; }
+    .select-indicator { position: absolute; top: 1rem; right: 1rem; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--bg); display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+    .variant-card.selected .select-indicator { background: var(--teal); border-color: var(--teal); color: #fff; }
+
+    /* Detail tabs */
+    .tab-bar { display: flex; gap: 4px; background: var(--bg); border-radius: 10px; padding: 4px; margin-bottom: 1.25rem; overflow-x: auto; }
+    .tab { padding: 8px 14px; border-radius: 8px; border: none; background: transparent; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; color: var(--text-s); cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; transition: all 0.15s; }
+    .tab:hover { color: var(--text); }
+    .tab.active { background: var(--surface); color: var(--teal-dark); box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .tab i { font-size: 15px; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Detail sections */
+    .detail-block { background: var(--surface); border-radius: var(--r); border: 0.5px solid var(--border-l); overflow: hidden; margin-bottom: 1rem; }
+    .detail-block-header { padding: 1rem 1.25rem; border-bottom: 0.5px solid var(--border-l); display: flex; align-items: center; gap: 10px; }
+    .dicon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+    .dicon.teal { background: var(--teal-light); color: var(--teal-dark); }
+    .dicon.blue { background: var(--blue-light); color: var(--blue); }
+    .dicon.amber { background: var(--amber-light); color: var(--amber); }
+    .dicon.purple { background: var(--purple-light); color: var(--purple); }
+    .dicon.coral { background: var(--coral-light); color: var(--coral); }
+    .detail-block-header h3 { font-size: 15px; font-weight: 600; }
+    .detail-block-body { padding: 1.25rem 1.5rem; }
+    .detail-content { font-size: 14px; color: var(--text-s); line-height: 1.85; }
+    .detail-content strong { color: var(--text); font-weight: 600; }
+    .detail-content p { margin-bottom: 0.6rem; }
+
+    /* Booking links */
+    .booking-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .booking-link { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--rs); border: 0.5px solid var(--border); background: var(--bg); text-decoration: none; color: var(--text); transition: all 0.15s; }
+    .booking-link:hover { border-color: var(--teal); background: var(--teal-light); }
+    .booking-link-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+    .booking-link-text { flex: 1; }
+    .booking-link-title { font-size: 13px; font-weight: 600; }
+    .booking-link-sub { font-size: 11px; color: var(--text-t); margin-top: 1px; }
+    .booking-link i.ti-external-link { font-size: 13px; color: var(--text-t); }
+
+    /* Day plan */
+    .day-item { border-left: 2px solid var(--teal-light); padding-left: 16px; margin-bottom: 1.25rem; position: relative; }
+    .day-item::before { content: ''; position: absolute; left: -5px; top: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--teal); }
+    .day-item-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .day-item-content { font-size: 13px; color: var(--text-s); line-height: 1.7; }
+
+    /* Packing list */
+    .pack-category { margin-bottom: 1.25rem; }
+    .pack-category-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .pack-items { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pack-item { display: flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 20px; border: 0.5px solid var(--border); background: var(--bg); font-size: 13px; color: var(--text-s); cursor: pointer; user-select: none; transition: all 0.15s; }
+    .pack-item.checked { background: var(--teal-light); border-color: var(--teal); color: var(--teal-deeper); text-decoration: line-through; opacity: 0.7; }
+    .pack-item i { font-size: 13px; }
+
+    /* Map */
+    #map { height: 340px; border-radius: var(--r); overflow: hidden; border: 0.5px solid var(--border-l); }
+    .leaflet-container { font-family: 'Inter', sans-serif; }
+
+    /* Back row */
+    .back-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .back-row h2 { font-size: 18px; font-weight: 600; }
+
+    /* Loading */
+    .loading-overlay { background: var(--surface); border-radius: var(--r); border: 0.5px solid var(--border-l); padding: 2.5rem; text-align: center; margin-top: 1rem; }
+    .big-spinner { width: 40px; height: 40px; margin: 0 auto 1rem; border: 3px solid var(--teal-light); border-top-color: var(--teal); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .loading-overlay p { font-size: 14px; color: var(--text-s); }
+    .loading-overlay .loading-step { font-size: 13px; color: var(--text-t); margin-top: 6px; }
+
+    .error-msg { background: #FCEBEB; border: 0.5px solid #F09595; border-radius: var(--rs); padding: 12px 14px; font-size: 13px; color: #791F1F; margin-top: 1rem; display: flex; align-items: center; gap: 8px; }
+
+    @media (max-width: 500px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 24px; }
+      .booking-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="hero">
+    <div class="hero-eyebrow">KI-gestützter Reiseplaner</div>
+    <h1>Wohin geht<br>die Reise?</h1>
+    <p>Gib deine Wünsche ein — die KI schlägt dir passende Reisevarianten vor.</p>
+    <div class="hero-icons">
+      <div class="hero-icon"><i class="ti ti-plane"></i></div>
+      <div class="hero-icon"><i class="ti ti-train"></i></div>
+      <div class="hero-icon"><i class="ti ti-car"></i></div>
+      <div class="hero-icon"><i class="ti ti-beach"></i></div>
+      <div class="hero-icon"><i class="ti ti-mountain"></i></div>
+    </div>
+  </div>
+
+  <div class="steps" id="steps">
+    <div class="step active" id="step1"><div class="step-num">1</div> Angaben</div>
+    <div class="step-divider"></div>
+    <div class="step" id="step2"><div class="step-num">2</div> Variante</div>
+    <div class="step-divider"></div>
+    <div class="step" id="step3"><div class="step-num">3</div> Detailplan</div>
+  </div>
+
+  <!-- PHASE 1: Formular -->
+  <div id="phase-form">
+    <div class="card">
+      <div class="section-label"><i class="ti ti-calendar"></i> Reisezeitraum</div>
+      <div class="form-grid">
+        <div class="field"><label>Abreise</label><input type="date" id="date-from" oninput="updateNights()"></div>
+        <div class="field"><label>Rückreise</label><input type="date" id="date-to" oninput="updateNights()"></div>
+      </div>
+      <div class="nights-badge" id="nights-badge"><i class="ti ti-moon"></i> <span id="nights-text"></span></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label"><i class="ti ti-users"></i> Personen & Abfahrtsort</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Personen</label>
+          <div class="persons-row">
+            <button class="counter-btn" onclick="changePersons(-1)">−</button>
+            <span id="persons-count">2</span>
+            <button class="counter-btn" onclick="changePersons(1)">+</button>
+            <span style="font-size:13px;color:var(--text-t)">Personen</span>
+          </div>
+        </div>
+        <div class="field"><label>Abfahrtsort</label><input type="text" id="origin" placeholder="z. B. Zürich"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label"><i class="ti ti-map-pin"></i> Ziel & Reiseart</div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Reiseziel (leer lassen = KI schlägt vor)</label>
+        <input type="text" id="destination" placeholder="z. B. Barcelona, Toskana, Skandinavien...">
+      </div>
+      <div class="chip-group" id="trip-type">
+        <div class="chip active" data-val="Städtereise"><i class="ti ti-building"></i> Städtereise</div>
+        <div class="chip" data-val="Natur & Wandern"><i class="ti ti-mountain"></i> Natur & Wandern</div>
+        <div class="chip" data-val="Strand & Sonne"><i class="ti ti-beach"></i> Strand & Sonne</div>
+        <div class="chip" data-val="Kulturreise"><i class="ti ti-palette"></i> Kulturreise</div>
+        <div class="chip" data-val="Abenteuer"><i class="ti ti-compass"></i> Abenteuer</div>
+        <div class="chip" data-val="Roadtrip"><i class="ti ti-steering-wheel"></i> Roadtrip</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label"><i class="ti ti-coin"></i> Budget pro Person</div>
+      <div class="budget-row">
+        <input type="range" id="budget" min="200" max="5000" step="50" value="1000" oninput="updateBudget(this.value)">
+        <span id="budget-display">CHF 1'000</span>
+      </div>
+      <div class="budget-labels"><span>CHF 200</span><span>CHF 5'000+</span></div>
+    </div>
+
+    <div class="card">
+      <div class="section-label"><i class="ti ti-plane"></i> Transportmittel</div>
+      <div class="chip-group" id="transport" style="margin-bottom:1.25rem">
+        <div class="chip active" data-val="Flugzeug"><i class="ti ti-plane"></i> Flugzeug</div>
+        <div class="chip active" data-val="Zug"><i class="ti ti-train"></i> Zug</div>
+        <div class="chip active" data-val="Auto"><i class="ti ti-car"></i> Auto</div>
+      </div>
+      <div class="section-label"><i class="ti ti-bed"></i> Unterkunft</div>
+      <div class="chip-group" id="accom">
+        <div class="chip active" data-val="Hotel"><i class="ti ti-building-skyscraper"></i> Hotel</div>
+        <div class="chip" data-val="Ferienwohnung"><i class="ti ti-home"></i> Ferienwohnung</div>
+        <div class="chip" data-val="Hostel"><i class="ti ti-bed"></i> Hostel</div>
+        <div class="chip" data-val="Camping"><i class="ti ti-tent"></i> Camping</div>
+        <div class="chip" data-val="Boutique-Hotel"><i class="ti ti-star"></i> Boutique-Hotel</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label"><i class="ti ti-notes"></i> Besondere Wünsche (optional)</div>
+      <textarea id="extras" placeholder="z. B. kein Fliegen, Haustier dabei, barrierefrei, kinderfreundlich..."></textarea>
+    </div>
+
+    <button class="btn-primary" id="submit-btn" onclick="getVariants()">
+      <i class="ti ti-sparkles"></i> Reisevarianten vorschlagen lassen
+    </button>
+    <div id="form-error"></div>
+  </div>
+
+  <!-- PHASE 2: Varianten -->
+  <div id="phase-variants" style="display:none">
+    <div class="back-row">
+      <h2>Wähle deine Variante</h2>
+      <button class="btn-secondary" onclick="goBack()"><i class="ti ti-arrow-left"></i> Zurück</button>
+    </div>
+    <div id="variants-container"></div>
+  </div>
+
+  <!-- PHASE 3: Detailplan -->
+  <div id="phase-detail" style="display:none">
+    <div class="back-row">
+      <h2 id="detail-title">Dein Reiseplan</h2>
+      <button class="btn-secondary" onclick="goToVariants()"><i class="ti ti-arrow-left"></i> Andere Variante</button>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab active" onclick="showTab('anreise', this)"><i class="ti ti-plane"></i> Anreise</button>
+      <button class="tab" onclick="showTab('unterkunft', this)"><i class="ti ti-bed"></i> Unterkunft</button>
+      <button class="tab" onclick="showTab('tagesplan', this)"><i class="ti ti-calendar-week"></i> Tagesplan</button>
+      <button class="tab" onclick="showTab('aktivitaeten', this)"><i class="ti ti-compass"></i> Aktivitäten</button>
+      <button class="tab" onclick="showTab('karte', this)"><i class="ti ti-map"></i> Karte</button>
+      <button class="tab" onclick="showTab('packliste', this)"><i class="ti ti-backpack"></i> Packliste</button>
+      <button class="tab" onclick="showTab('budget', this)"><i class="ti ti-coin"></i> Budget</button>
+    </div>
+
+    <div id="tab-anreise" class="tab-panel active"></div>
+    <div id="tab-unterkunft" class="tab-panel"></div>
+    <div id="tab-tagesplan" class="tab-panel"></div>
+    <div id="tab-aktivitaeten" class="tab-panel"></div>
+    <div id="tab-karte" class="tab-panel"></div>
+    <div id="tab-packliste" class="tab-panel"></div>
+    <div id="tab-budget" class="tab-panel"></div>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+let persons = 2;
+let selectedVariant = null;
+let formData = {};
+let detailPlan = null;
+let mapInstance = null;
+
+// --- UI helpers ---
+function changePersons(delta) {
+  persons = Math.max(1, Math.min(20, persons + delta));
+  document.getElementById('persons-count').textContent = persons;
+}
+function updateBudget(val) {
+  const n = parseInt(val);
+  document.getElementById('budget-display').textContent = n >= 5000 ? "CHF 5'000+" : "CHF " + n.toLocaleString('de-CH');
+}
+function updateNights() {
+  const f = document.getElementById('date-from').value;
+  const t = document.getElementById('date-to').value;
+  const badge = document.getElementById('nights-badge');
+  if (f && t) {
+    const diff = Math.round((new Date(t) - new Date(f)) / 86400000);
+    if (diff > 0) { document.getElementById('nights-text').textContent = diff + (diff === 1 ? ' Nacht' : ' Nächte'); badge.style.display = 'inline-flex'; return; }
+  }
+  badge.style.display = 'none';
+}
+document.querySelectorAll('.chip-group').forEach(group => {
+  group.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (group.id === 'trip-type') { group.querySelectorAll('.chip').forEach(c => c.classList.remove('active')); chip.classList.add('active'); }
+      else chip.classList.toggle('active');
+    });
+  });
+});
+function getSelected(id) { return [...document.querySelectorAll(`#${id} .chip.active`)].map(c => c.dataset.val); }
+function formatDate(val) { if (!val) return null; const [y,m,d] = val.split('-'); return `${d}.${m}.${y}`; }
+function setStep(n) { [1,2,3].forEach(i => { const el = document.getElementById('step'+i); el.classList.remove('active','done'); if(i===n) el.classList.add('active'); if(i<n) el.classList.add('done'); }); }
+function goBack() { document.getElementById('phase-variants').style.display='none'; document.getElementById('phase-form').style.display='block'; setStep(1); if (mapInstance) { mapInstance.remove(); mapInstance = null; } detailPlan = null; selectedVariant = null; }
+function goToVariants() { document.getElementById('phase-detail').style.display='none'; document.getElementById('phase-variants').style.display='block'; setStep(2); if (mapInstance) { mapInstance.remove(); mapInstance = null; } detailPlan = null; }
+function showError(id, msg) { document.getElementById(id).innerHTML = `<div class="error-msg"><i class="ti ti-alert-circle"></i> ${msg}</div>`; }
+function fmtText(t) {
+  return t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>');
+}
+
+function showTab(name, el) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'karte' && detailPlan && !mapInstance) initMap();
+}
+
+// --- API ---
+async function callClaude(prompt, maxTokens) {
+  const res = await fetch('/api/claude', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], max_tokens: maxTokens || 2000 })
+  });
+  const data = await res.json();
+  const text = data.content?.map(b => b.text||'').join('') || '';
+  if (!text) throw new Error('Keine Antwort');
+  return text;
+}
+
+// --- PHASE 1 ---
+async function getVariants() {
+  const dateFrom = document.getElementById('date-from').value;
+  const dateTo = document.getElementById('date-to').value;
+  const origin = document.getElementById('origin').value.trim();
+  if (!dateFrom || !dateTo || !origin) { showError('form-error','Bitte Abreisedatum, Rückreisedatum und Abfahrtsort angeben.'); return; }
+  if (new Date(dateTo) <= new Date(dateFrom)) { showError('form-error','Das Rückreisedatum muss nach dem Abreisedatum liegen.'); return; }
+  document.getElementById('form-error').innerHTML = '';
+
+  const budget = parseInt(document.getElementById('budget').value);
+  const budgetStr = budget >= 5000 ? "über CHF 5'000" : `ca. CHF ${budget.toLocaleString('de-CH')}`;
+  const nights = Math.round((new Date(dateTo) - new Date(dateFrom)) / 86400000);
+  const destination = document.getElementById('destination').value.trim();
+
+  formData = { dateFrom, dateTo, origin, destination, budget, budgetStr, nights,
+    extras: document.getElementById('extras').value.trim(),
+    tripType: getSelected('trip-type'), transport: getSelected('transport'), accom: getSelected('accom'), persons };
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Varianten werden erstellt...';
+
+  const prompt = `Du bist ein erfahrener Reiseplaner. Schlage genau 3 verschiedene Reisevarianten vor.
+
+Angaben:
+- Abreise: ${formatDate(dateFrom)} ab ${origin}
+- Rückreise: ${formatDate(dateTo)} (${nights} Nächte)
+- Personen: ${persons}
+- Reiseziel: ${destination || 'offen — schlage passende Ziele vor'}
+- Reiseart: ${formData.tripType.join(', ')}
+- Budget pro Person: ${budgetStr}
+- Transportmittel: ${formData.transport.length ? formData.transport.join(', ') : 'offen'}
+- Unterkunft: ${formData.accom.length ? formData.accom.join(', ') : 'offen'}
+${formData.extras ? `- Wünsche: ${formData.extras}` : ''}
+
+Die 3 Varianten sollen sich klar unterscheiden.
+
+Antworte NUR mit validem JSON ohne Backticks:
+[{"titel":"...","ziel":"Stadt, Land","typ":"budget|comfort|adventure","transport":"Flugzeug|Zug|Auto","unterkunft":"...","preis_pro_nacht":"ca. CHF XX","beschreibung":"2-3 Sätze.","tags":["Tag1","Tag2","Tag3"]}]`;
+
+  try {
+    const text = await callClaude(prompt);
+    const variants = JSON.parse(text.replace(/```json|```/g,'').trim());
+    document.getElementById('phase-form').style.display = 'none';
+    document.getElementById('phase-variants').style.display = 'block';
+    setStep(2);
+    renderVariants(variants);
+  } catch(e) {
+    showError('form-error','Fehler beim Generieren. Bitte nochmals versuchen.');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-sparkles"></i> Reisevarianten vorschlagen lassen';
+  }
+}
+
+function renderVariants(variants) {
+  selectedVariant = null;
+  const badgeMap = { budget:['badge-budget','Günstig'], comfort:['badge-comfort','Komfort'], adventure:['badge-adventure','Abenteuer'] };
+  const html = variants.map((v,i) => {
+    const [bc,bl] = badgeMap[v.typ]||['badge-budget',v.typ];
+    const tags = (v.tags||[]).map(t=>`<span class="vtag"><i class="ti ti-tag" style="font-size:11px"></i>${t}</span>`).join('');
+    return `<div class="variant-card" data-index="${i}" onclick="selectVariant(${i},this)" data-variant='${JSON.stringify(v).replace(/'/g,"&#39;")}'>
+      <div class="select-indicator" id="sel-${i}"><i class="ti ti-check" style="font-size:13px;display:none" id="check-${i}"></i></div>
+      <div class="variant-header"><div><div class="variant-title">${v.titel}</div><div class="variant-subtitle">${v.ziel}</div></div><span class="variant-badge ${bc}">${bl}</span></div>
+      <div class="variant-desc">${v.beschreibung}</div>
+      <div class="variant-tags">
+        <span class="vtag"><i class="ti ti-plane" style="font-size:11px"></i>${v.transport}</span>
+        <span class="vtag"><i class="ti ti-bed" style="font-size:11px"></i>${v.unterkunft}</span>
+        <span class="vtag"><i class="ti ti-coin" style="font-size:11px"></i>${v.preis_pro_nacht}/Nacht</span>
+        ${tags}
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('variants-container').innerHTML = `
+    <div class="variants-grid">${html}</div>
+    <div style="margin-top:1rem">
+      <button class="btn-primary" id="select-btn" onclick="getDetailPlan()" disabled>
+        <i class="ti ti-arrow-right"></i> Detailplan für diese Variante
+      </button>
+    </div>`;
+}
+
+function selectVariant(index, el) {
+  document.querySelectorAll('.variant-card').forEach((c,i) => { c.classList.remove('selected'); const ch = document.getElementById('check-'+i); if(ch) ch.style.display='none'; });
+  el.classList.add('selected');
+  const ch = document.getElementById('check-'+index); if(ch) ch.style.display='block';
+  selectedVariant = JSON.parse(el.dataset.variant);
+  document.getElementById('select-btn').disabled = false;
+}
+
+// --- PHASE 3 ---
+async function getDetailPlan() {
+  if (!selectedVariant) return;
+  const btn = document.getElementById('select-btn');
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Plan wird erstellt...';
+
+  document.getElementById('phase-variants').style.display = 'none';
+  document.getElementById('phase-detail').style.display = 'block';
+  setStep(3);
+  document.getElementById('detail-title').textContent = selectedVariant.titel + ' — ' + selectedVariant.ziel;
+
+  // Show loading in tabs (karte stays empty)
+  const loadingHtml = `<div class="loading-overlay"><div class="big-spinner"></div><p>Detailplan wird erstellt...</p><div class="loading-step">Dies dauert ca. 10–15 Sekunden</div></div>`;
+  ['anreise','unterkunft','tagesplan','aktivitaeten','packliste','budget'].forEach(t => {
+    document.getElementById('tab-'+t).innerHTML = loadingHtml;
+  });
+  document.getElementById('tab-karte').innerHTML = '';
+
+  const v = selectedVariant;
+  const prompt = `Du bist ein erfahrener Reiseplaner. Erstelle einen vollständigen Reiseplan.
+
+Variante: ${v.titel} — ${v.ziel}
+Abreise: ${formatDate(formData.dateFrom)} ab ${formData.origin}
+Rückreise: ${formatDate(formData.dateTo)} (${formData.nights} Nächte)
+Personen: ${formData.persons}
+Reiseart: ${formData.tripType.join(', ')}
+Budget pro Person: ${formData.budgetStr}
+Transport: ${v.transport}
+Unterkunft: ${v.unterkunft}
+${formData.extras ? `Wünsche: ${formData.extras}` : ''}
+
+Antworte NUR mit validem JSON ohne Backticks:
+{
+  "ziel_koordinaten": {"lat": 0.0, "lng": 0.0, "name": "Stadtname"},
+  "anreise": {
+    "typ": "${v.transport}",
+    "beschreibung": "Detaillierte Anreise: Strecke, Dauer, konkrete Tipps, ungefähre Kosten.",
+    "flug_suche": "Suchbegriff für Flugsuche z.B. 'ZRH BCN' oder null",
+    "zug_von": "${formData.origin}",
+    "zug_nach": "Zielbahnhof",
+    "auto_von": "${formData.origin}",
+    "auto_nach": "Zielort für Google Maps"
+  },
+  "unterkunft": {
+    "empfehlung": "Konkreter Unterkunftsname oder Typ + Quartier",
+    "quartier": "Empfohlenes Quartier/Stadtteil",
+    "beschreibung": "Warum dieses Quartier, worauf achten, Tipps.",
+    "booking_suche": "Suchbegriff für Booking.com z.B. 'Barcelona Eixample'",
+    "airbnb_suche": "Suchbegriff für Airbnb"
+  },
+  "tagesplan": [
+    {"tag": "Tag 1 — Datum/Wochentag", "titel": "Ankommen & Erkunden", "aktivitaeten": ["Aktivität 1 mit kurzer Beschreibung", "Aktivität 2", "Aktivität 3"]},
+    {"tag": "Tag 2", "titel": "...", "aktivitaeten": ["..."]}
+  ],
+  "aktivitaeten": [
+    {"name": "Name", "typ": "Sehenswürdigkeit|Wanderung|Restaurant|Geheimtipp|Ausflug", "beschreibung": "Details inkl. Dauer, Schwierigkeit bei Wanderungen, Öffnungszeiten etc.", "lat": 0.0, "lng": 0.0}
+  ],
+  "packliste": {
+    "Kleidung": ["Item1", "Item2"],
+    "Dokumente": ["Item1", "Item2"],
+    "Elektronik": ["Item1", "Item2"],
+    "Hygiene": ["Item1", "Item2"],
+    "Diverses": ["Item1", "Item2"]
+  },
+  "budget": {
+    "anreise_pp": "CHF XX",
+    "unterkunft_gesamt": "CHF XX",
+    "essen_pp": "CHF XX",
+    "aktivitaeten_pp": "CHF XX",
+    "diverses_pp": "CHF XX",
+    "total_pp": "CHF XX",
+    "fazit": "Reicht das Budget? Wo sparen, wo ausgeben?"
+  }
+}`;
+
+  try {
+    const text = await callClaude(prompt, 4000);
+    detailPlan = JSON.parse(text.replace(/```json|```/g,'').trim());
+    renderDetail(detailPlan, v);
+  } catch(e) {
+    ['anreise','unterkunft','tagesplan','aktivitaeten','karte','packliste','budget'].forEach(t => {
+      document.getElementById('tab-'+t).innerHTML = `<div class="error-msg"><i class="ti ti-alert-circle"></i> Fehler beim Generieren. Bitte zurückgehen und nochmals versuchen.</div>`;
+    });
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-arrow-right"></i> Detailplan für diese Variante';
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderDetail(p, v) {
+  // --- ANREISE ---
+  const a = p.anreise;
+  let bookingLinks = '';
+  const isFlug = v.transport === 'Flugzeug';
+  const isZug = v.transport === 'Zug';
+  const isAuto = v.transport === 'Auto';
+
+  if (isFlug && a.flug_suche) {
+    const sky = `https://www.skyscanner.ch/transport/flights/${a.flug_suche.replace(' ','/')}/${formData.dateFrom.replace(/-/g,'').slice(2)}/`;
+    const gf = `https://www.google.com/travel/flights?q=Flights+${encodeURIComponent(a.flug_suche)}+${formatDate(formData.dateFrom)}`;
+    bookingLinks = `<div class="booking-grid" style="margin-top:1rem">
+      <a href="${sky}" target="_blank" class="booking-link"><div class="booking-link-icon" style="background:#E6F1FB;color:#185FA5"><i class="ti ti-plane"></i></div><div class="booking-link-text"><div class="booking-link-title">Skyscanner</div><div class="booking-link-sub">Flüge vergleichen</div></div><i class="ti ti-external-link"></i></a>
+      <a href="${gf}" target="_blank" class="booking-link"><div class="booking-link-icon" style="background:#FAEEDA;color:#BA7517"><i class="ti ti-search"></i></div><div class="booking-link-text"><div class="booking-link-title">Google Flights</div><div class="booking-link-sub">Preise & Zeiten</div></div><i class="ti ti-external-link"></i></a>
+    </div>`;
+  } else if (isZug) {
+    const trainline = `https://www.trainline.eu/search/${encodeURIComponent(a.zug_von)}/${encodeURIComponent(a.zug_nach)}/${formData.dateFrom}`;
+    // SBB only for CH/DE/AT/FR destinations (short/regional haul)
+    const sbbCountries = ['schweiz','germany','deutschland','austria','österreich','france','frankreich','italien','italy'];
+    const dest = (selectedVariant.ziel || '').toLowerCase();
+    const isSbbRoute = sbbCountries.some(c => dest.includes(c)) || dest.includes('ch') || dest.includes('zürich') || dest.includes('bern') || dest.includes('basel') || dest.includes('luzern') || dest.includes('genf') || dest.includes('lausanne') || dest.includes('münchen') || dest.includes('wien') || dest.includes('paris') || dest.includes('mailand') || dest.includes('milan');
+    const sbb = `https://www.sbb.ch/de/kaufen/pages/fahrplan/fahrplan.xhtml?nach=${encodeURIComponent(a.zug_nach)}&von=${encodeURIComponent(a.zug_von)}&datum=${formData.dateFrom}`;
+    bookingLinks = `<div class="booking-grid" style="margin-top:1rem">
+      ${isSbbRoute ? `<a href="${sbb}" target="_blank" class="booking-link"><div class="booking-link-icon" style="background:#E1F5EE;color:#0F6E56"><i class="ti ti-train"></i></div><div class="booking-link-text"><div class="booking-link-title">SBB</div><div class="booking-link-sub">Tickets kaufen</div></div><i class="ti ti-external-link"></i></a>` : ''}
+      <a href="${trainline}" target="_blank" class="booking-link"><div class="booking-link-icon" style="background:#EEEDFE;color:#534AB7"><i class="ti ti-train"></i></div><div class="booking-link-text"><div class="booking-link-title">Trainline</div><div class="booking-link-sub">Europaweit buchen</div></div><i class="ti ti-external-link"></i></a>
+    </div>`;
+  } else if (isAuto) {
+    const gmaps = `https://www.google.com/maps/dir/${encodeURIComponent(a.auto_von)}/${encodeURIComponent(a.auto_nach)}`;
+    bookingLinks = `<div style="margin-top:1rem">
+      <a href="${gmaps}" target="_blank" class="booking-link"><div class="booking-link-icon" style="background:#FAEEDA;color:#BA7517"><i class="ti ti-car"></i></div><div class="booking-link-text"><div class="booking-link-title">Google Maps Route</div><div class="booking-link-sub">${a.auto_von} → ${a.auto_nach}</div></div><i class="ti ti-external-link"></i></a>
+    </div>`;
+  }
+
+  document.getElementById('tab-anreise').innerHTML = `
+    <div class="detail-block">
+      <div class="detail-block-header"><div class="dicon teal"><i class="ti ti-plane"></i></div><h3>Anreise</h3></div>
+      <div class="detail-block-body"><div class="detail-content"><p>${fmtText(a.beschreibung)}</p></div>${bookingLinks}</div>
+    </div>`;
+
+  // --- UNTERKUNFT ---
+  const u = p.unterkunft;
+  const bk = `https://www.booking.com/search.html?ss=${encodeURIComponent(u.booking_suche)}&checkin=${formData.dateFrom}&checkout=${formData.dateTo}&group_adults=${formData.persons}`;
+  const ab = `https://www.airbnb.com/s/${encodeURIComponent(u.airbnb_suche)}/homes?checkin=${formData.dateFrom}&checkout=${formData.dateTo}&adults=${formData.persons}`;
+  document.getElementById('tab-unterkunft').innerHTML = `
+    <div class="detail-block">
+      <div class="detail-block-header"><div class="dicon blue"><i class="ti ti-bed"></i></div><h3>Unterkunft</h3></div>
+      <div class="detail-block-body">
+        <div class="detail-content"><p><strong>${u.empfehlung}</strong> — ${u.quartier}</p><p>${fmtText(u.beschreibung)}</p></div>
+        <div class="booking-grid" style="margin-top:1rem">
+          <a href="${bk}" target="_blank" class="booking-link"><div class="booking-link-icon" style="background:#E6F1FB;color:#185FA5"><i class="ti ti-building-skyscraper"></i></div><div class="booking-link-text"><div class="booking-link-title">Booking.com</div><div class="booking-link-sub">Hotels & Apartments</div></div><i class="ti ti-external-link"></i></a>
+          <a href="${ab}" target="_blank" class="booking-link"><div class="booking-link-icon" style="background:#FAECE7;color:#993C1D"><i class="ti ti-home"></i></div><div class="booking-link-text"><div class="booking-link-title">Airbnb</div><div class="booking-link-sub">Ferienwohnungen</div></div><i class="ti ti-external-link"></i></a>
+        </div>
+      </div>
+    </div>`;
+
+  // --- TAGESPLAN ---
+  const days = (p.tagesplan||[]).map(day => `
+    <div class="detail-block">
+      <div class="detail-block-header"><div class="dicon purple"><i class="ti ti-calendar-week"></i></div><h3>${day.tag} — ${day.titel}</h3></div>
+      <div class="detail-block-body">
+        ${(day.aktivitaeten||[]).map((ak,i) => `
+          <div class="day-item">
+            <div class="day-item-title">${i+1}. ${ak.split('—')[0].split(':')[0]}</div>
+            <div class="day-item-content">${ak}</div>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+  document.getElementById('tab-tagesplan').innerHTML = days || '<div class="error-msg">Kein Tagesplan verfügbar.</div>';
+
+  // --- AKTIVITÄTEN ---
+  const typIcons = { 'Sehenswürdigkeit':'ti-building-arch', 'Wanderung':'ti-mountain', 'Restaurant':'ti-tools-kitchen-2', 'Geheimtipp':'ti-star', 'Ausflug':'ti-compass' };
+  const typColors = { 'Sehenswürdigkeit':'blue', 'Wanderung':'teal', 'Restaurant':'amber', 'Geheimtipp':'coral', 'Ausflug':'purple' };
+  const aktHtml = (p.aktivitaeten||[]).map(ak => {
+    const icon = typIcons[ak.typ]||'ti-map-pin';
+    const color = typColors[ak.typ]||'teal';
+    return `<div class="detail-block">
+      <div class="detail-block-header"><div class="dicon ${color}"><i class="ti ${icon}"></i></div><h3>${ak.name} <span style="font-size:12px;font-weight:400;color:var(--text-t);margin-left:6px">${ak.typ}</span></h3></div>
+      <div class="detail-block-body"><div class="detail-content"><p>${fmtText(ak.beschreibung)}</p></div></div>
+    </div>`;
+  }).join('');
+  document.getElementById('tab-aktivitaeten').innerHTML = aktHtml || '<div class="error-msg">Keine Aktivitäten verfügbar.</div>';
+
+  // --- KARTE (placeholder, initialized on tab click) ---
+  document.getElementById('tab-karte').innerHTML = `
+    <div class="detail-block">
+      <div class="detail-block-header"><div class="dicon teal"><i class="ti ti-map"></i></div><h3>Karte</h3></div>
+      <div class="detail-block-body"><div id="map"></div></div>
+    </div>`;
+
+  // --- PACKLISTE ---
+  const packHtml = Object.entries(p.packliste||{}).map(([cat, items]) => {
+    const catIcons = { 'Kleidung':'ti-shirt','Dokumente':'ti-id','Elektronik':'ti-device-mobile','Hygiene':'ti-droplet','Diverses':'ti-dots' };
+    const icon = catIcons[cat]||'ti-list';
+    const itemsHtml = items.map(item => `<div class="pack-item" onclick="togglePack(this)"><i class="ti ti-check" style="font-size:12px"></i>${item}</div>`).join('');
+    return `<div class="pack-category"><div class="pack-category-title"><i class="ti ${icon}"></i>${cat}</div><div class="pack-items">${itemsHtml}</div></div>`;
+  }).join('');
+  document.getElementById('tab-packliste').innerHTML = `
+    <div class="detail-block">
+      <div class="detail-block-header"><div class="dicon amber"><i class="ti ti-backpack"></i></div><h3>Packliste</h3></div>
+      <div class="detail-block-body">${packHtml}</div>
+    </div>`;
+
+  // --- BUDGET ---
+  const b = p.budget||{};
+  const budgetRows = [
+    ['Anreise (pro Person)', b.anreise_pp, 'ti-plane'],
+    ['Unterkunft (gesamt)', b.unterkunft_gesamt, 'ti-bed'],
+    ['Essen (pro Person)', b.essen_pp, 'ti-tools-kitchen-2'],
+    ['Aktivitäten (pro Person)', b.aktivitaeten_pp, 'ti-compass'],
+    ['Diverses (pro Person)', b.diverses_pp, 'ti-dots'],
+  ].map(([label, val, icon]) => val ? `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--border-l)">
+      <div style="display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-s)"><i class="ti ${icon}" style="font-size:16px"></i>${label}</div>
+      <div style="font-size:14px;font-weight:500">${val}</div>
+    </div>` : '').join('');
+
+  document.getElementById('tab-budget').innerHTML = `
+    <div class="detail-block">
+      <div class="detail-block-header"><div class="dicon teal"><i class="ti ti-coin"></i></div><h3>Budgetcheck</h3></div>
+      <div class="detail-block-body">
+        ${budgetRows}
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 4px">
+          <div style="font-size:15px;font-weight:600">Total pro Person</div>
+          <div style="font-size:18px;font-weight:600;color:var(--teal-dark)">${b.total_pp||'—'}</div>
+        </div>
+        <p style="font-size:13px;color:var(--text-s);margin-top:10px;line-height:1.7">${b.fazit||''}</p>
+      </div>
+    </div>`;
+}
+
+function togglePack(el) { el.classList.toggle('checked'); }
+
+function initMap() {
+  if (!detailPlan || !detailPlan.ziel_koordinaten) return;
+  const coord = detailPlan.ziel_koordinaten;
+  setTimeout(() => {
+    try {
+      mapInstance = L.map('map').setView([coord.lat, coord.lng], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
+        maxZoom: 18
+      }).addTo(mapInstance);
+
+      // Main marker
+      L.marker([coord.lat, coord.lng]).addTo(mapInstance)
+        .bindPopup(`<strong>${coord.name}</strong>`).openPopup();
+
+      // Activity markers
+      const acts = detailPlan.aktivitaeten || [];
+      acts.forEach(ak => {
+        if (ak.lat && ak.lng && ak.lat !== 0) {
+          const colors = { 'Sehenswürdigkeit':'#185FA5','Wanderung':'#1D9E75','Restaurant':'#BA7517','Geheimtipp':'#D85A30','Ausflug':'#534AB7' };
+          const color = colors[ak.typ]||'#1D9E75';
+          const icon = L.divIcon({
+            html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>`,
+            iconSize: [12,12], iconAnchor: [6,6], className: ''
+          });
+          L.marker([ak.lat, ak.lng], {icon}).addTo(mapInstance)
+            .bindPopup(`<strong>${ak.name}</strong><br><span style="font-size:12px;color:#888">${ak.typ}</span>`);
+        }
+      });
+    } catch(e) { console.error('Map error', e); }
+  }, 100);
+}
+</script>
+</body>
+</html>
